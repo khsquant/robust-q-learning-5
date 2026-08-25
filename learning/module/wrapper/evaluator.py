@@ -401,7 +401,6 @@ class AdvEvaluator:
       num_eval_seeds: int = 1,
       use_mpc: bool = False,
       dummy_plan:jnp.ndarray = jnp.zeros(1),
-      eval_grid=None,                    # ← 시그니처에 추가
   ):
     """Init.
 
@@ -419,7 +418,10 @@ class AdvEvaluator:
     self._dr_range_low = dr_range_low
     self._dr_range_high = dr_range_high
     self._num_eval_seeds = num_eval_seeds
-    self._eval_grid = eval_grid          # ← __init__ 본문에 추가
+    # AdvEvaluator.__init__ 안, self._num_eval_seeds = ... 근처에 추가
+    self._eval_grid = None
+    if dr_range_low is not None and dr_range_high is not None:
+        self._eval_grid = build_eval_grid(dr_range_low, dr_range_high, num_eval_envs)
 
     eval_env = AdvEvalWrapper(eval_env)
 
