@@ -1,5 +1,3 @@
-from module.wrapper.evaluator import build_eval_grid   # 경로는 기존 evaluator import와 동일하게
-
 import functools
 import hashlib
 import inspect
