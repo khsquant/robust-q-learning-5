@@ -398,7 +398,7 @@ class AdvEvaluator:
       key: PRNGKey,
       dr_range_low: Optional[jnp.ndarray] = None,
       dr_range_high: Optional[jnp.ndarray] = None,
-      num_eval_seeds: int = 1,
+      num_eval_seeds: int = 5,
       use_mpc: bool = False,
       dummy_plan:jnp.ndarray = jnp.zeros(1),
   ):
