@@ -902,6 +902,8 @@ def train(
         key=eval_key,
         dr_range_low=eval_dr_low,
         dr_range_high=eval_dr_high,
+        eval_grid=build_eval_grid(eval_dr_low, eval_dr_high, num_eval_envs),  # 고정 격자
+        num_eval_seeds=10,                                                    # 도메인당 10 seed 평균
     )
   else:
     eval_env = envs.training.wrap(
