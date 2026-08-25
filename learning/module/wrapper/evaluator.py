@@ -12,6 +12,35 @@ import numpy as np
 from flax import struct
 from brax import envs
 
+def build_eval_grid(dr_range_low, dr_range_high, num_points, min_side=4, seed=0):
+    """도메인 파라미터 공간(임의 차원 dim)에서 고정된 평가 도메인 집합을 만든다.
+       반환: 항상 정확히 (num_points, dim) 배열.
+       - side >= min_side  : 축마다 등간격 텐서곱 격자(+부족분은 고정 uniform으로 채움)
+       - 그 외(고차원)     : 전부 고정 seed uniform 샘플
+    """
+    low  = jnp.asarray(dr_range_low,  dtype=jnp.float32)
+    high = jnp.asarray(dr_range_high, dtype=jnp.float32)
+    dim  = int(low.shape[0])
+    key  = jax.random.PRNGKey(seed)
+
+    # 축당 점 개수 side: side**dim <= num_points 가 되도록 (부동소수 오차까지 보정)
+    side = int(round(num_points ** (1.0 / dim)))
+    while side > 1 and side ** dim > num_points:
+        side -= 1
+
+    if side >= min_side:
+        axes = [jnp.linspace(low[d], high[d], side) for d in range(dim)]   # 축마다 등간격
+        mesh = jnp.meshgrid(*axes, indexing='ij')                          # dim개 텐서
+        grid = jnp.stack([m.ravel() for m in mesh], axis=-1)               # (side**dim, dim)
+        n_pad = num_points - grid.shape[0]                                 # 남는 자리
+        if n_pad > 0:                                                      # 고정 uniform으로 정확히 채움
+            pad = jax.random.uniform(key, (n_pad, dim), minval=low, maxval=high)
+            grid = jnp.concatenate([grid, pad], axis=0)
+        return grid                                                        # (num_points, dim)
+
+    # 고차원: 격자가 성기므로 전부 고정 seed uniform (재현성 보장)
+    return jax.random.uniform(key, (num_points, dim), minval=low, maxval=high)
+
 
 def sample_dynamics_params(
     key: jax.Array,
@@ -372,6 +401,7 @@ class AdvEvaluator:
       num_eval_seeds: int = 1,
       use_mpc: bool = False,
       dummy_plan:jnp.ndarray = jnp.zeros(1),
+      eval_grid=None,                    # ← 시그니처에 추가
   ):
     """Init.
 
@@ -389,6 +419,7 @@ class AdvEvaluator:
     self._dr_range_low = dr_range_low
     self._dr_range_high = dr_range_high
     self._num_eval_seeds = num_eval_seeds
+    self._eval_grid = eval_grid          # ← __init__ 본문에 추가
 
     eval_env = AdvEvalWrapper(eval_env)
 
@@ -430,18 +461,21 @@ class AdvEvaluator:
       num_eval_seeds = self._num_eval_seeds
 
     if dynamics_params is None:
-      if self._dr_range_low is None or self._dr_range_high is None:
-        raise ValueError(
-            'AdvEvaluator needs dr_range_low/high when dynamics_params are not'
-            ' provided.'
+      if self._eval_grid is not None:
+        dynamics_params = self._eval_grid            # 고정 격자 우선
+      else:
+        if self._dr_range_low is None or self._dr_range_high is None:
+          raise ValueError(
+              'AdvEvaluator needs dr_range_low/high when dynamics_params are not'
+              ' provided.'
+          )
+        self._key, params_key, unroll_key = jax.random.split(self._key, 3)
+        dynamics_params = sample_dynamics_params(
+            params_key,
+            self._num_eval_envs,
+            self._dr_range_low,
+            self._dr_range_high,
         )
-      self._key, params_key, unroll_key = jax.random.split(self._key, 3)
-      dynamics_params = sample_dynamics_params(
-          params_key,
-          self._num_eval_envs,
-          self._dr_range_low,
-          self._dr_range_high,
-      )
     else:
       self._key, unroll_key = jax.random.split(self._key)
 
