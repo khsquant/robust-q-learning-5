@@ -462,21 +462,22 @@ class AdvEvaluator:
     if num_eval_seeds is None:
       num_eval_seeds = self._num_eval_seeds
 
+
     if dynamics_params is None:
+      self._key, params_key, unroll_key = jax.random.split(self._key, 3)
       if self._eval_grid is not None:
-        dynamics_params = self._eval_grid            # 고정 격자 우선
-      else:
-        if self._dr_range_low is None or self._dr_range_high is None:
-          raise ValueError(
-              'AdvEvaluator needs dr_range_low/high when dynamics_params are not'
-              ' provided.'
-          )
-        self._key, params_key, unroll_key = jax.random.split(self._key, 3)
-        dynamics_params = sample_dynamics_params(
+        dynamics_params = self._eval_grid                       # 고정 격자 우선
+      elif self._dr_range_low is not None and self._dr_range_high is not None:
+        dynamics_params = sample_dynamics_params(               # 격자 없으면 기존 랜덤
             params_key,
             self._num_eval_envs,
             self._dr_range_low,
             self._dr_range_high,
+        )
+      else:
+        raise ValueError(
+            'AdvEvaluator needs eval_grid or dr_range_low/high '
+            'when dynamics_params are not provided.'
         )
     else:
       self._key, unroll_key = jax.random.split(self._key)
