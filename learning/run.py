@@ -411,6 +411,7 @@ def _train_gmmtd3_variant(
     gmmtd3_params = _td3_config(cfg.task)
     gmmtd3_params.use_tc = use_tc
     gmmtd3_params.radius = 0.001
+    gmmtd3_params.num_eval_envs = 16384 if cfg.task == "WalkerWalk" else 4096
     _maybe_override_config(gmmtd3_params, cfg)
 
     wandb_name = f"{cfg.task}.{cfg.policy}.seed={cfg.seed}.beta={cfg.beta}.radius={cfg.radius}"
@@ -449,6 +450,7 @@ def _train_gmmtd3_variant(
 def train_sac(cfg, randomization_fn, env, eval_env=None):
     sac_params = _sac_config(cfg.task)
     sac_params.dr_augmented_critic = _cfg_flag(cfg, "dr_augmented_critic")
+    sac_params.num_eval_envs = 16384 if cfg.task == "WalkerWalk" else 4096
     _maybe_override_config(sac_params, cfg)
     sac_training_params = dict(sac_params)
     wandb_name = (
@@ -541,6 +543,7 @@ def train_wdsac(cfg, randomization_fn, env, eval_env=None):
 def train_gmmsac(cfg, randomization_fn, env, eval_env=None): # 수정됨
     gmmsac_params = _sac_config(cfg.task)
     gmmsac_params.dr_augmented_critic = _cfg_flag(cfg, "dr_augmented_critic")
+    gmmsac_params.num_eval_envs = 16384 if cfg.task == "WalkerWalk" else 4096
     _maybe_override_config(gmmsac_params, cfg)
     gmmsac_training_params = dict(gmmsac_params)
     wandb_name = f"{cfg.task}.{cfg.policy}.seed={cfg.seed}.beta={cfg.beta}"
@@ -573,6 +576,7 @@ def train_gmmsac(cfg, randomization_fn, env, eval_env=None): # 수정됨
 def train_td3(cfg, randomization_fn, env, eval_env=None):
     td3_params = _td3_config(cfg.task)
     td3_params.dr_augmented_critic = _cfg_flag(cfg, "dr_augmented_critic")
+    td3_params.num_eval_envs = 16384 if cfg.task == "WalkerWalk" else 4096
     _maybe_override_config(td3_params, cfg)
     td3_training_params = dict(td3_params)
     wandb_name = (
@@ -617,6 +621,7 @@ def train_m2td3(cfg, randomization_fn, env, eval_env=None):
     m2td3_params.omega_restart_distance = True
     m2td3_params.omega_restart_probability = True
     m2td3_params.dr_augmented_critic = True
+    m2td3_params.num_eval_envs = 16384 if cfg.task == "WalkerWalk" else 4096
     _maybe_override_config(m2td3_params, cfg)
 
     wandb_name = (
