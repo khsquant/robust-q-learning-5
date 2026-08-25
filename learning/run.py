@@ -1,3 +1,5 @@
+from module.wrapper.evaluator import build_eval_grid   # 경로는 기존 evaluator import와 동일하게
+
 import functools
 import hashlib
 import inspect
@@ -120,7 +122,6 @@ CAMERAS = {
 _WANDB_GROUP_LIMIT = 120
 _WANDB_GROUP_HASH_LENGTH = 8
 _TC_WANDB_POLICIES = frozenset({"tc_bridgetd3", "tc_gmmtd3"})
-
 
 def _limit_wandb_group(group: str) -> str:
     """Keep W&B group names within the API limit while retaining uniqueness."""
