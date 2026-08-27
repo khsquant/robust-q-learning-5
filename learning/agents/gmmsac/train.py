@@ -296,6 +296,9 @@ def train(
       dr_augmented_critic=dr_augmented_critic,
   )
   make_policy = sac_networks.make_inference_fn(sac_network)
+  # (A') J(θ;ξ) ≈ E_{s0}[V(s0;ξ)] 추정을 위한 고정 참조 초기상태 집합
+  N_REF = 64
+  ref_obs = env.reset(jax.random.PRNGKey(0)).obs[:N_REF]   # (N_REF, obs_dim)
 
   alpha_optimizer = optax.adam(learning_rate=3e-4)
 
@@ -496,14 +499,32 @@ def train(
 
     nu = training_state.gmm_training_state.num_updates
     beta_scale = jnp.clip(nu / warm_updates, 0.0, 1.0)     # 0→1 램프 후 1 유지
+    
     normalizer_params, env_state, buffer_state, simul_info, simul_transitions = get_experience(
         training_state.normalizer_params, training_state.policy_params,
         training_state.qr_params, sampled_params, env_state, buffer_state, experience_key, beta_scale=beta_scale) # 수정됨
+
+    # (A') 참조 초기상태에서 return-critic으로 per-ξ 타깃 J(θ;ξ) 추정
+    ref_policy = make_policy((training_state.normalizer_params, training_state.policy_params))
+    a0, _ = ref_policy(ref_obs, param_key)                            # ξ 무관, 한 번만
+    
+    def _jhat(xi):
+      xi_b = jnp.broadcast_to(xi, (ref_obs.shape[0],) + xi.shape)
+      v0 = sac_network.qr_network.apply(
+          training_state.normalizer_params, training_state.qr_params,
+          ref_obs, a0, xi_b).mean(-1)                                 # (N_REF,)
+      return v0.mean()                                               # 초기상태 평균 = J 추정
+    
+    Jhat = jax.vmap(_jhat)(sampled_params)                            # (num_xi,)
+    logw = beta_scale * beta * (Jhat - Jhat.mean()) / 100.0           # 센터링 유지
+    gmm_target_lnpdf = jnp.clip(logw, -3.0, 3.0)                      # 클립 유지
+    gmm_target_grad = jnp.zeros_like(sampled_params)
+    
     new_sample_db_state = sac_network.gmm_network.sample_selector.save_samples(
         training_state.gmm_training_state.model_state,
         training_state.gmm_training_state.sample_db_state,
-        sampled_params, simul_transitions.target_lnpdf, # simul_transitions.dynamics_params -> sampled_params
-        simul_transitions.target_lnpdf_grad, mapping)
+        sampled_params, gmm_target_lnpdf, # simul_transitions.dynamics_params -> sampled_params
+        gmm_target_grad, mapping)
     new_gmm_training_state = training_state.gmm_training_state._replace(sample_db_state=new_sample_db_state)
     training_state = training_state.replace(
         normalizer_params=normalizer_params,
