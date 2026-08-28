@@ -16,6 +16,8 @@
 
 See: https://arxiv.org/pdf/1812.05905.pdf
 """
+import wandb                                              # 히트맵을 wandb.Image로 감싸기 위해
+import learning.module.gmmvi.utils as gmm_utils          # GMM 밀도 시각화 유틸(gmmtd3와 동일)
 
 import functools
 import struct
@@ -246,6 +248,7 @@ def train(
     dr_low = dr_high = None
     dynamics_param_size = 0
     training_dr_range = None
+  can_visualize_dr = dynamics_param_size == 2   # 2D dynamics일 때만 히트맵 (Cartpole/Cheetah/Acrobot)
   training_randomization_fn = None
   if randomization_fn is not None:
     if training_dr_range is None:
@@ -712,6 +715,21 @@ def train(
         key=eval_key,
     )
 
+  def log_gmm_heatmap(ts, metrics_dict, step_key):
+    # 학습된 GMM 샘플러 νϕ의 밀도를 dr 격자 위에 시각화 (gmmtd3의 "model" 히트맵과 동일)
+    if process_id == 0 and can_visualize_dr:
+      samples = sac_network.gmm_network.model.sample(
+          _unpmap(ts.gmm_training_state.model_state.gmm_state), step_key, 1000)[0]
+      log_prob_fn = jax.vmap(functools.partial(
+          sac_network.gmm_network.model.log_density,
+          gmm_state=_unpmap(ts.gmm_training_state.model_state.gmm_state)))
+      model_fig, model_fig_raw = gmm_utils.visualise(
+          log_prob_fn, dr_low, dr_high, samples,
+          bijector_log_prob=sac_network.gmm_network.model.bijector_log_prob)
+      metrics_dict["model"] = wandb.Image(model_fig)          # progress_fn → wandb.log가 실제 업로드
+      if model_fig_raw is not None:
+        metrics_dict["model_raw"] = wandb.Image(model_fig_raw)
+
   # Run initial eval
   metrics = {}
   if process_id == 0 and num_evals > 1:
@@ -722,8 +740,10 @@ def train(
         training_metrics={},
     )
     logging.info(metrics)
+    hm_key, local_key = jax.random.split(local_key)
+    log_gmm_heatmap(training_state, metrics, hm_key)
     progress_fn(0, metrics)
-
+    
   # Create and initialize the replay buffer.
   t = time.time()
   prefill_key, local_key = jax.random.split(local_key)
@@ -775,6 +795,8 @@ def train(
           training_metrics,
       )
       logging.info(metrics)
+      hm_key, local_key = jax.random.split(local_key)
+      log_gmm_heatmap(training_state, metrics, hm_key)
       progress_fn(current_step, metrics)
 
   total_steps = current_step
