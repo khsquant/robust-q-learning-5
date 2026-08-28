@@ -185,7 +185,7 @@ def train(
     checkpoint_logdir: Optional[str] = None,
     restore_checkpoint_path: Optional[str] = None,
     dr_train_ratio = 1.0,
-    dr_augmented_critic: bool = False,
+    dr_augmented_critic: bool = True, #False,
     beta: float = 1.0,
     value_obs_key: str = 'state',
     eval_with_training_env: bool = False,
@@ -301,7 +301,7 @@ def train(
   #ref_obs = env.reset(jax.random.PRNGKey(0)).obs[:N_REF]   # (N_REF, obs_dim)
   N_REF = min(64, num_envs)
   ref_rng = jax.random.split(jax.random.PRNGKey(0), num_envs)
-  ref_obs = env.reset(ref_rng).obs["state"][:N_REF]
+  ref_obs = jax.tree_util.tree_map(lambda x: x[:N_REF], env.reset(ref_rng).obs)
 
   alpha_optimizer = optax.adam(learning_rate=3e-4)
 
@@ -512,7 +512,7 @@ def train(
     a0, _ = ref_policy(ref_obs, param_key)                            # ξ 무관, 한 번만
     
     def _jhat(xi):
-      xi_b = jnp.broadcast_to(xi, (ref_obs.shape[0],) + xi.shape)
+      xi_b = jnp.broadcast_to(xi, (N_REF,) + xi.shape)
       v0 = sac_network.qr_network.apply(
           training_state.normalizer_params, training_state.qr_params,
           ref_obs, a0, xi_b).mean(-1)                                 # (N_REF,)
