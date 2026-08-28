@@ -335,7 +335,8 @@ def train(
   make_policy = gmmtd3_networks.make_inference_fn(gmmtd3_network)
   N_REF = min(64, num_envs)
   ref_rng = jax.random.split(jax.random.PRNGKey(0), num_envs)
-  ref_obs = env.reset(ref_rng).obs["state"][:N_REF]
+  # obs가 dict이므로 각 leaf를 [:N_REF]로 슬라이스 (dict 구조 유지) — adv_step이 넘기는 env_state.obs와 동일 형태
+  ref_obs = jax.tree_util.tree_map(lambda x: x[:N_REF], env.reset(ref_rng).obs)
 
   policy_optimizer = optax.adam(learning_rate=learning_rate)
   q_optimizer = optax.adam(learning_rate=learning_rate)    
@@ -638,10 +639,10 @@ def train(
     # (A') 메인 q_network(ξ 조건부)로 per-ξ 타깃 추정 — dr_augmented_critic=True 필수
     det_policy = make_policy((training_state.normalizer_params, training_state.policy_params),
                              deterministic=True)
-    a0 = det_policy(ref_obs, jnp.zeros((ref_obs.shape[0], action_size)), param_key)[0]  # noise=0
+    a0 = det_policy(ref_obs)[0]   # deterministic_policy(obs) -> (action, None), [0]=action
     
     def _jhat(xi):
-      xi_b = jnp.broadcast_to(xi, (ref_obs.shape[0],) + xi.shape)
+      xi_b = jnp.broadcast_to(xi, (N_REF,) + xi.shape)
       v0 = gmmtd3_network.q_network.apply(
           training_state.normalizer_params, training_state.q_params,
           ref_obs, a0, xi_b).mean(-1)
@@ -651,10 +652,11 @@ def train(
     logw = beta_scale * beta * (Jhat - Jhat.mean()) / 100.0
     gmm_target_lnpdf = jnp.clip(logw, -3.0, 3.0)
     gmm_target_grad = jnp.zeros_like(sampled_dynamics_params)
-    
-    new_sample_db_state = gmmtd3_network.gmm_network.sample_selector.save_samples(training_state.gmm_training_state.model_state, \
-                      training_state.gmm_training_state.sample_db_state, sampled_dynamics_params, gmm_target_lnpdf, \
-                        gmm_target_grad, mapping) # simul_transitions.dynamics_params -> sampled_dynamics_params
+
+    new_sample_db_state = gmmtd3_network.gmm_network.sample_selector.save_samples(
+        training_state.gmm_training_state.model_state,           # ← .model_state 꼭
+        training_state.gmm_training_state.sample_db_state,
+        sampled_dynamics_params, gmm_target_lnpdf, gmm_target_grad, mapping)
     new_gmm_training_state = training_state.gmm_training_state._replace(sample_db_state=new_sample_db_state)
     training_state = training_state.replace(
         normalizer_params=normalizer_params,
