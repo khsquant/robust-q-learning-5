@@ -335,7 +335,7 @@ def train(
   make_policy = gmmtd3_networks.make_inference_fn(gmmtd3_network)
   N_REF = min(64, num_envs)
   ref_rng = jax.random.split(jax.random.PRNGKey(0), num_envs)
-  ref_obs = env.reset(ref_rng).obs[:N_REF]
+  ref_obs = env.reset(ref_rng).obs["state"][:N_REF]
 
   policy_optimizer = optax.adam(learning_rate=learning_rate)
   q_optimizer = optax.adam(learning_rate=learning_rate)    
