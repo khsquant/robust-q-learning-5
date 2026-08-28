@@ -297,8 +297,11 @@ def train(
   )
   make_policy = sac_networks.make_inference_fn(sac_network)
   # (A') J(θ;ξ) ≈ E_{s0}[V(s0;ξ)] 추정을 위한 고정 참조 초기상태 집합
-  N_REF = 64
-  ref_obs = env.reset(jax.random.PRNGKey(0)).obs[:N_REF]   # (N_REF, obs_dim)
+  #N_REF = 64
+  #ref_obs = env.reset(jax.random.PRNGKey(0)).obs[:N_REF]   # (N_REF, obs_dim)
+  N_REF = min(64, num_envs)
+  ref_rng = jax.random.split(jax.random.PRNGKey(0), num_envs)
+  ref_obs = env.reset(ref_rng).obs[:N_REF]
 
   alpha_optimizer = optax.adam(learning_rate=3e-4)
 
