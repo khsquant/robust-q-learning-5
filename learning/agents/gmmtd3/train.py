@@ -227,7 +227,7 @@ def train(
     policy_frequency: int = 2,
     value_obs_key="state",
     distributional_q=False,
-    dr_augmented_critic: bool = False,
+    dr_augmented_critic: bool = True, #False,
     beta: float = 1.0,
     use_tc: bool = False,
     radius: float = 0.001,
