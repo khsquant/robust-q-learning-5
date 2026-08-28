@@ -301,7 +301,7 @@ def train(
   #ref_obs = env.reset(jax.random.PRNGKey(0)).obs[:N_REF]   # (N_REF, obs_dim)
   N_REF = min(64, num_envs)
   ref_rng = jax.random.split(jax.random.PRNGKey(0), num_envs)
-  ref_obs = env.reset(ref_rng).obs[:N_REF]
+  ref_obs = env.reset(ref_rng).obs["state"][:N_REF]
 
   alpha_optimizer = optax.adam(learning_rate=3e-4)
 
