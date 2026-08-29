@@ -835,6 +835,7 @@ def train(
       log_gmm_heatmap(training_state, hm_key, current_step)
       progress_fn(current_step, metrics)
 
+  log_performance_heatmap(training_state, current_step)
   total_steps = current_step
   if not total_steps >= num_timesteps:
     raise AssertionError(
