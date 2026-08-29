@@ -948,5 +948,6 @@ def train(
       ax.set_xlabel('dr param 0 (mass)'); ax.set_ylabel('dr param 1 (gravity)')
       wandb.log({"performance_heatmap": wandb.Image(fig)}, step=int(current_step))
       plt.close(fig)
+  
   log_performance_heatmap(training_state, current_step)
   return (make_policy, params, metrics)
