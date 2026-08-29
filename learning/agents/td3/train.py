@@ -929,7 +929,7 @@ def train(
   pmap.synchronize_hosts()
 
   # 리턴 히트맵
-  can_visualize_dr = dynamics_param_size == 2
+  can_visualize_dr = param_size == 2
   def log_performance_heatmap(ts, current_step):
     # 각 dr 도메인에서 최종 정책의 '실제 에피소드 리턴'(seed 평균)을 격자로 시각화
     if process_id == 0 and can_visualize_dr:
