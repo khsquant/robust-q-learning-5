@@ -16,6 +16,9 @@
 
 See: https://arxiv.org/pdf/1812.05905.pdf
 """
+import wandb
+import matplotlib.pyplot as plt
+import numpy as np
 
 import functools
 import struct
@@ -149,7 +152,6 @@ def _init_training_state(
       ),
   )
   return _replicate_across_devices(training_state, local_devices_to_use)
-
 
 def train(
     environment: envs.Env,
@@ -925,4 +927,26 @@ def train(
   pmap.assert_is_replicated(training_state)
   logging.info('total steps: %s', total_steps)
   pmap.synchronize_hosts()
+
+  # 리턴 히트맵
+  can_visualize_dr = dynamics_param_size == 2
+  def log_performance_heatmap(ts, current_step):
+    # 각 dr 도메인에서 최종 정책의 '실제 에피소드 리턴'(seed 평균)을 격자로 시각화
+    if process_id == 0 and can_visualize_dr:
+      G = int(round(num_eval_envs ** 0.5))          # 격자=sqrt(num_eval_envs) (4096->64x64)
+      xs = jnp.linspace(dr_low[0], dr_high[0], G)
+      ys = jnp.linspace(dr_low[1], dr_high[1], G)
+      gx, gy = jnp.meshgrid(xs, ys, indexing='ij')
+      grid = jnp.stack([gx.ravel(), gy.ravel()], axis=-1)   # (G*G, 2)
+      params = _unpmap((ts.normalizer_params, ts.policy_params))
+      _, reward_1d = evaluator.run_evaluation(              # (metrics, per-domain 리턴)
+          params, dynamics_params=grid, num_eval_seeds=5, return_reward_array=True)
+      Z = np.asarray(reward_1d).reshape(G, G)
+      fig, ax = plt.subplots()
+      cs = ax.contourf(np.asarray(gx), np.asarray(gy), Z, levels=30, cmap='viridis')
+      fig.colorbar(cs, label='episode return')
+      ax.set_xlabel('dr param 0 (mass)'); ax.set_ylabel('dr param 1 (gravity)')
+      wandb.log({"performance_heatmap": wandb.Image(fig)}, step=int(current_step))
+      plt.close(fig)
+  log_performance_heatmap(training_state, current_step)
   return (make_policy, params, metrics)
