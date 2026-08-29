@@ -681,6 +681,27 @@ def train(
   assert replay_size >= min_replay_size
   training_walltime = time.time() - t
 
+  # 리턴 히트맵 함수 정의
+  def log_performance_heatmap(ts, current_step):
+    # 각 dr 도메인에서 '실제 에피소드 리턴'(seed 평균)을 격자로 시각화 (논문 Performance Heatmap)
+    if process_id != 0 or eval_dr_low is None or len(eval_dr_low) != 2:
+      return
+    G = int(round(num_eval_envs ** 0.5))                     # 격자 = sqrt(num_eval_envs)
+    xs = jnp.linspace(eval_dr_low[0], eval_dr_high[0], G)
+    ys = jnp.linspace(eval_dr_low[1], eval_dr_high[1], G)
+    gx, gy = jnp.meshgrid(xs, ys, indexing='ij')
+    grid = jnp.stack([gx.ravel(), gy.ravel()], axis=-1)     # (G*G,2) = num_eval_envs개 도메인
+    _, reward_1d = evaluator.run_evaluation(
+        _unpmap((ts.normalizer_params, ts.policy_params)),
+        dynamics_params=grid, num_eval_seeds=5, return_reward_array=True)
+    Z = np.asarray(reward_1d).reshape(G, G)
+    fig, ax = plt.subplots()
+    cs = ax.contourf(np.asarray(gx), np.asarray(gy), Z, levels=30, cmap='viridis')
+    fig.colorbar(cs, label='episode return')
+    ax.set_xlabel('dr param 0'); ax.set_ylabel('dr param 1')
+    wandb.log({"performance_heatmap": wandb.Image(fig)}, step=int(current_step))
+    plt.close(fig)
+
   current_step = 0
   for _ in range(num_evals_after_init):
     logging.info('step %s', current_step)
