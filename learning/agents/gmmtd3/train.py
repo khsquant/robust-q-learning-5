@@ -1119,7 +1119,8 @@ def train(
             }, step=current_step)
         metrics.update({'target entropy' : target_entropy})
       progress_fn(current_step, metrics)
-      
+
+  log_performance_heatmap(training_state, current_step)
   total_steps = current_step
   if not total_steps >= num_timesteps:
     raise AssertionError(
