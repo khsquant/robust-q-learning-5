@@ -715,6 +715,21 @@ def train(
         key=eval_key,
     )
 
+  def log_gmm_heatmap(ts, step_key, current_step):
+    # 학습된 GMM 샘플러 νϕ 밀도를 dr 격자에 시각화 (metrics dict에는 넣지 않음 → JSONL 직렬화 회피)
+    if process_id == 0 and can_visualize_dr:
+      samples = sac_network.gmm_network.model.sample(
+          _unpmap(ts.gmm_training_state.model_state.gmm_state), step_key, 1000)[0]
+      log_prob_fn = jax.vmap(functools.partial(
+          sac_network.gmm_network.model.log_density,
+          gmm_state=_unpmap(ts.gmm_training_state.model_state.gmm_state)))
+      model_fig, model_fig_raw = gmm_utils.visualise(
+          log_prob_fn, dr_low, dr_high, samples,
+          bijector_log_prob=sac_network.gmm_network.model.bijector_log_prob)
+      wandb.log({"model": wandb.Image(model_fig)}, step=int(current_step), commit=False)   # 직접 업로드
+      if model_fig_raw is not None:
+        wandb.log({"model_raw": wandb.Image(model_fig_raw)}, step=int(current_step), commit=False)
+  '''
   def log_gmm_heatmap(ts, metrics_dict, step_key):
     # 학습된 GMM 샘플러 νϕ의 밀도를 dr 격자 위에 시각화 (gmmtd3의 "model" 히트맵과 동일)
     if process_id == 0 and can_visualize_dr:
@@ -729,7 +744,7 @@ def train(
       metrics_dict["model"] = wandb.Image(model_fig)          # progress_fn → wandb.log가 실제 업로드
       if model_fig_raw is not None:
         metrics_dict["model_raw"] = wandb.Image(model_fig_raw)
-
+  '''
   # Run initial eval
   metrics = {}
   if process_id == 0 and num_evals > 1:
@@ -741,7 +756,7 @@ def train(
     )
     logging.info(metrics)
     hm_key, local_key = jax.random.split(local_key)
-    log_gmm_heatmap(training_state, metrics, hm_key)
+    log_gmm_heatmap(training_state, hm_key, 0)
     progress_fn(0, metrics)
     
   # Create and initialize the replay buffer.
@@ -796,7 +811,7 @@ def train(
       )
       logging.info(metrics)
       hm_key, local_key = jax.random.split(local_key)
-      log_gmm_heatmap(training_state, metrics, hm_key)
+      log_gmm_heatmap(training_state, hm_key, current_step)
       progress_fn(current_step, metrics)
 
   total_steps = current_step
