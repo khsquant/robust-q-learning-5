@@ -743,6 +743,7 @@ def train(
       logging.info(metrics)
       progress_fn(current_step, metrics)
 
+  log_performance_heatmap(training_state, current_step)
   total_steps = current_step
   if not total_steps >= num_timesteps:
     raise AssertionError(
