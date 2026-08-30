@@ -703,7 +703,7 @@ def train(
     fig.colorbar(cs, label='episode return')
     ax.set_xlabel('dr param 0'); ax.set_ylabel('dr param 1')
     logging.info(f"[perf-heatmap] reached: G={G}, return mean={float(np.mean(Z)):.1f}, min={float(np.min(Z)):.1f}")
-    wandb.log({"performance_heatmap": wandb.Image(fig)}, step=int(current_step)+1)
+    wandb.log({"performance_heatmap": wandb.Image(fig)}, step=int(current_step))
     plt.close(fig)
 
   current_step = 0
@@ -743,8 +743,9 @@ def train(
       )
       logging.info(metrics)
       progress_fn(current_step, metrics)
+      
+    log_performance_heatmap(training_state, current_step)
 
-  log_performance_heatmap(training_state, current_step)
   total_steps = current_step
   if not total_steps >= num_timesteps:
     raise AssertionError(
