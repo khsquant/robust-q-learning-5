@@ -465,7 +465,7 @@ def train(
       # (기존) target_lnpdf = beta * q_values / 100
       q_sg = jax.lax.stop_gradient(q_values)
       logw = (beta * beta_scale) * (q_sg - q_sg.mean()) / 100.0          # 배치 평균 차감 → 절대 Q 드리프트(음수 발산) 면역
-      target_lnpdf = jnp.clip(logw, -5.0, 5.0)            # 집중 상한: 최대 가중비 e^6≈400배
+      target_lnpdf = logw #jnp.clip(logw, -5.0, 5.0)            # 집중 상한: 최대 가중비 e^6≈400배
       return nstate, TransitionwithParams(
           observation=env_state.obs,
           action=actions,
@@ -795,7 +795,7 @@ def train(
     fig.colorbar(cs, label='episode return')
     ax.set_xlabel('dr param 0'); ax.set_ylabel('dr param 1')
     logging.info(f"[perf-heatmap] reached: G={G}, return mean={float(np.mean(Z)):.1f}, min={float(np.min(Z)):.1f}")
-    wandb.log({"performance_heatmap": wandb.Image(fig)}, step=int(current_step)+1)
+    wandb.log({"performance_heatmap": wandb.Image(fig)}, step=int(current_step))
     plt.close(fig)
 
   current_step = 0
@@ -836,9 +836,9 @@ def train(
       logging.info(metrics)
       hm_key, local_key = jax.random.split(local_key)
       log_gmm_heatmap(training_state, hm_key, current_step)
+      log_performance_heatmap(training_state, current_step)
       progress_fn(current_step, metrics)
 
-  log_performance_heatmap(training_state, current_step)
   total_steps = current_step
   if not total_steps >= num_timesteps:
     raise AssertionError(
